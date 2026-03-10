@@ -18,7 +18,8 @@
     "task:product-search:demo": "tsx src/main.ts -- --template product-search --query \"iPhone 16 128GB\" --locale \"台灣（繁體中文）\" --max-results 8 --allow-open-product-page",
     "task:product-search:precheckout-demo": "tsx src/main.ts -- --template product-search --query \"Dyson 吸塵器\" --max-results 5 --allow-open-product-page --allow-cart --allow-precheckout",
     "task:plan": "tsx src/main.ts -- --plan",
-    "task:playbook": "tsx src/main.ts -- --playbook"
+    "task:playbook": "tsx src/main.ts -- --playbook",
+    "server": "tsx src/server/index.ts"
   },
   "keywords": [],
   "author": "",

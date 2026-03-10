@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playbook Executor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Library View -->
+  <div id="view-library" class="view active">
+    <header>
+      <h1>Playbook Library</h1>
+      <div class="header-actions">
+        <button id="btn-import" class="btn btn-primary" title="Import playbook">+ Import</button>
+        <button id="btn-settings" class="btn btn-icon" title="Settings">&#9881;</button>
+      </div>
+    </header>
+    <div id="playbook-list" class="playbook-list">
+      <div class="empty-state">
+        <p>No playbooks yet.</p>
+        <p>Click <strong>+ Import</strong> to add a playbook JSON file.</p>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".json" hidden>
+  </div>
+
+  <!-- Settings View -->
+  <div id="view-settings" class="view">
+    <header>
+      <button class="btn btn-back" id="btn-settings-back">&larr;</button>
+      <h1>Settings</h1>
+    </header>
+    <div class="settings-form">
+      <label>
+        Backend URL
+        <input type="text" id="setting-backend-url" placeholder="http://localhost:3001">
+      </label>
+      <button id="btn-save-settings" class="btn btn-primary">Save</button>
+      <div id="connection-status" class="status-badge">Not checked</div>
+    </div>
+  </div>
+
+  <!-- Variables Form View -->
+  <div id="view-form" class="view">
+    <header>
+      <button class="btn btn-back" id="btn-form-back">&larr;</button>
+      <h1 id="form-title">Variables</h1>
+    </header>
+    <div id="form-description" class="form-description"></div>
+    <div id="variable-fields" class="variable-fields"></div>
+    <div class="form-actions">
+      <button id="btn-execute" class="btn btn-primary btn-large">&#9654; Execute</button>
+    </div>
+  </div>
+
+  <!-- Execution View -->
+  <div id="view-execution" class="view">
+    <header>
+      <button class="btn btn-back" id="btn-exec-back">&larr;</button>
+      <h1>Execution</h1>
+    </header>
+    <div id="exec-progress" class="progress-bar">
+      <div id="exec-progress-fill" class="progress-fill"></div>
+    </div>
+    <div id="exec-status" class="exec-status">Connecting...</div>
+    <div id="exec-log" class="exec-log"></div>
+    <div id="exec-result" class="exec-result hidden"></div>
+    <div id="chat-input-area" class="chat-input-area hidden">
+      <input type="text" id="chat-input" placeholder="Type a reply..." />
+      <button id="btn-send" class="btn btn-primary">Send</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

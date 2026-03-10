@@ -8,10 +8,8 @@ import {
   loadPlaybook,
   substituteVariables,
   formatPlaybookAsTaskPrompt,
+  EXECUTOR_INSTRUCTIONS,
 } from "./playbook.js";
-
-const EXECUTOR_INSTRUCTIONS =
-  "你是瀏覽器自動化執行器。你會收到一份詳細的步驟清單。請嚴格按照步驟順序逐一執行，不要跳過、合併或自行推理。每完成一個步驟，確認預期狀態是否符合，如果不符合，參考錯誤處理提示。如果某步驟反覆失敗，報告失敗原因並繼續下一步。使用建議的選擇器尋找元素，如果找不到，嘗試用文字內容或 ARIA 標籤定位。若動作涉及加入購物車、填寫個資、付款或提交訂單，必須先要求使用者明確確認。若呼叫 browser_take_screenshot，必須傳入相對檔名 filename，不可使用絕對路徑。回覆請使用繁體中文。";
 
 function attachToolEventListeners(
   runtime: Awaited<ReturnType<typeof connectRuntime>>,
