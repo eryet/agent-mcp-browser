@@ -29,7 +29,7 @@ function buildTaskWithHistory(userInput: string, history: string[]): string {
   ].join("\n\n");
 }
 
-async function runSingleTurn(
+export async function runSingleTurn(
   agent: Agent,
   userInput: string,
   history: string[],

@@ -1,24 +1,22 @@
 import "dotenv/config";
-import { ensureApiKey, resolveRuntimeConfig } from "./config.js";
+import { ensureApiKey, resolveRuntimeConfig, type RuntimeConfig } from "./config.js";
 import { connectRuntime, getToolName, shorten } from "./runtime.js";
 import { ScreenshotCollector } from "./screenshot.js";
-import { startInteractiveSession } from "./session.js";
+import { startInteractiveSession, runSingleTurn } from "./session.js";
+import { generatePlaybook } from "./planner.js";
+import {
+  loadPlaybook,
+  substituteVariables,
+  formatPlaybookAsTaskPrompt,
+} from "./playbook.js";
 
-async function main(): Promise<void> {
-  ensureApiKey();
+const EXECUTOR_INSTRUCTIONS =
+  "你是瀏覽器自動化執行器。你會收到一份詳細的步驟清單。請嚴格按照步驟順序逐一執行，不要跳過、合併或自行推理。每完成一個步驟，確認預期狀態是否符合，如果不符合，參考錯誤處理提示。如果某步驟反覆失敗，報告失敗原因並繼續下一步。使用建議的選擇器尋找元素，如果找不到，嘗試用文字內容或 ARIA 標籤定位。若動作涉及加入購物車、填寫個資、付款或提交訂單，必須先要求使用者明確確認。若呼叫 browser_take_screenshot，必須傳入相對檔名 filename，不可使用絕對路徑。回覆請使用繁體中文。";
 
-  const cliArgs = process.argv.slice(2);
-  const config = resolveRuntimeConfig(cliArgs);
-
-  const runtime = await connectRuntime({
-    mcpUrl: config.mcpUrl,
-    model: config.model,
-    mcpTimeout: config.mcpTimeout,
-    connectTimeout: config.connectTimeout,
-  });
-
-  const screenshotCollector = new ScreenshotCollector(config.screenshotDir);
-
+function attachToolEventListeners(
+  runtime: Awaited<ReturnType<typeof connectRuntime>>,
+  screenshotCollector: ScreenshotCollector,
+): void {
   runtime.agent.on("agent_tool_start", (_context, tool) => {
     console.log(`[tool:start] ${getToolName(tool)}`);
   });
@@ -28,6 +26,18 @@ async function main(): Promise<void> {
     console.log(`[tool:end] ${toolName} -> ${shorten(result)}`);
     await screenshotCollector.onToolEnd(toolName, result);
   });
+}
+
+async function runInteractiveMode(config: RuntimeConfig): Promise<void> {
+  const runtime = await connectRuntime({
+    mcpUrl: config.mcpUrl,
+    model: config.model,
+    mcpTimeout: config.mcpTimeout,
+    connectTimeout: config.connectTimeout,
+  });
+
+  const screenshotCollector = new ScreenshotCollector(config.screenshotDir);
+  attachToolEventListeners(runtime, screenshotCollector);
 
   try {
     console.log(`[mcp] mode: ${config.mcpMode}`);
@@ -42,6 +52,80 @@ async function main(): Promise<void> {
     );
   } finally {
     await runtime.close();
+  }
+}
+
+async function runPlanMode(config: RuntimeConfig): Promise<void> {
+  const task = config.initialTask;
+  if (!task) {
+    throw new Error(
+      "使用 --plan 時需要提供任務描述。例如：pnpm run dev -- --plan \"打開網站並填寫表單\"",
+    );
+  }
+
+  await generatePlaybook(task, config);
+}
+
+async function runPlaybookMode(config: RuntimeConfig): Promise<void> {
+  if (!config.playbookPath) {
+    throw new Error(
+      "使用 --playbook 時需要提供 playbook 檔案路徑。例如：pnpm run dev -- --playbook playbooks/my-task.json",
+    );
+  }
+
+  console.log(`[playbook] 載入：${config.playbookPath}`);
+  const rawPlaybook = await loadPlaybook(config.playbookPath);
+
+  const playbook = substituteVariables(rawPlaybook, config.variableOverrides);
+  const taskPrompt = formatPlaybookAsTaskPrompt(playbook);
+
+  console.log(`[playbook] 任務：${playbook.metadata.description}`);
+  console.log(`[playbook] 步驟數：${playbook.steps.length}`);
+  console.log(`[playbook] 使用模型：${config.model}`);
+
+  const runtime = await connectRuntime({
+    mcpUrl: config.mcpUrl,
+    model: config.model,
+    mcpTimeout: config.mcpTimeout,
+    connectTimeout: config.connectTimeout,
+    instructions: EXECUTOR_INSTRUCTIONS,
+  });
+
+  const screenshotCollector = new ScreenshotCollector(config.screenshotDir);
+  attachToolEventListeners(runtime, screenshotCollector);
+
+  try {
+    console.log(`[mcp] mode: ${config.mcpMode}`);
+    console.log(`[mcp] connected: ${config.mcpUrl}\n`);
+
+    await runSingleTurn(
+      runtime.agent,
+      taskPrompt,
+      [],
+      config.maxTurns,
+      screenshotCollector,
+    );
+  } finally {
+    await runtime.close();
+  }
+}
+
+async function main(): Promise<void> {
+  ensureApiKey();
+
+  const cliArgs = process.argv.slice(2);
+  const config = resolveRuntimeConfig(cliArgs);
+
+  switch (config.runMode) {
+    case "plan":
+      await runPlanMode(config);
+      break;
+    case "playbook":
+      await runPlaybookMode(config);
+      break;
+    default:
+      await runInteractiveMode(config);
+      break;
   }
 }
 

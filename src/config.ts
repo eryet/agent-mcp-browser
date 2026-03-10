@@ -4,14 +4,17 @@ import { resolveTaskFromArgs } from "./templates.js";
 
 const DEFAULT_MCP_URL = "http://localhost:8931/mcp";
 const DEFAULT_MODEL = "gpt-4.1-mini";
+const DEFAULT_PLANNER_MODEL = "gpt-5.4";
 const DEFAULT_MCP_MODE = "headless";
 const DEFAULT_OUTPUT_DIR = "./playwright-mcp-output/";
+const DEFAULT_PLAYBOOK_DIR = "./playbooks/";
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
 
 type MCPMode = "headless" | "attach";
+export type RunMode = "interactive" | "plan" | "playbook";
 
 export type RuntimeConfig = {
   mcpUrl: string;
@@ -22,6 +25,11 @@ export type RuntimeConfig = {
   maxTurns: number;
   screenshotDir: string;
   initialTask?: string;
+  runMode: RunMode;
+  plannerModel: string;
+  playbookPath?: string;
+  playbookDir: string;
+  variableOverrides: Record<string, string>;
 };
 
 export function ensureApiKey(): void {
@@ -74,8 +82,74 @@ function resolveScreenshotDirFromEnv(): string {
   return resolveScreenshotDir(DEFAULT_OUTPUT_DIR);
 }
 
+function resolvePlaybookDir(): string {
+  const envDir = process.env.PLAYBOOK_DIR?.trim();
+  const rawDir = envDir || DEFAULT_PLAYBOOK_DIR;
+
+  if (path.isAbsolute(rawDir)) {
+    return path.normalize(rawDir);
+  }
+
+  return path.resolve(PROJECT_ROOT, rawDir);
+}
+
+type PlaybookCliResult = {
+  runMode: RunMode;
+  playbookPath?: string;
+  variableOverrides: Record<string, string>;
+  remainingArgs: string[];
+};
+
+function parsePlaybookCliArgs(cliArgs: string[]): PlaybookCliResult {
+  let runMode: RunMode = "interactive";
+  let playbookPath: string | undefined;
+  const variableOverrides: Record<string, string> = {};
+  const remainingArgs: string[] = [];
+
+  for (let i = 0; i < cliArgs.length; i++) {
+    const arg = cliArgs[i];
+
+    if (arg === "--plan") {
+      runMode = "plan";
+      continue;
+    }
+
+    if (arg === "--playbook") {
+      runMode = "playbook";
+      const nextArg = cliArgs[i + 1];
+      if (nextArg && !nextArg.startsWith("--")) {
+        playbookPath = nextArg;
+        i++;
+      }
+      continue;
+    }
+
+    if (arg === "--var") {
+      const nextArg = cliArgs[i + 1];
+      if (nextArg) {
+        const eqIndex = nextArg.indexOf("=");
+        if (eqIndex > 0) {
+          variableOverrides[nextArg.slice(0, eqIndex)] =
+            nextArg.slice(eqIndex + 1);
+        }
+        i++;
+      }
+      continue;
+    }
+
+    remainingArgs.push(arg);
+  }
+
+  return { runMode, playbookPath, variableOverrides, remainingArgs };
+}
+
 export function resolveRuntimeConfig(cliArgs: string[]): RuntimeConfig {
   const screenshotDir = resolveScreenshotDirFromEnv();
+  const { runMode, playbookPath, variableOverrides, remainingArgs } =
+    parsePlaybookCliArgs(cliArgs);
+
+  const initialTask =
+    remainingArgs.length > 0 ? resolveTaskFromArgs(remainingArgs) : undefined;
 
   return {
     mcpUrl: process.env.MCP_SERVER_URL ?? DEFAULT_MCP_URL,
@@ -85,6 +159,11 @@ export function resolveRuntimeConfig(cliArgs: string[]): RuntimeConfig {
     connectTimeout: readNumberFromEnv("MCP_CONNECT_TIMEOUT_MS", 10_000),
     maxTurns: readNumberFromEnv("AGENT_MAX_TURNS", 12),
     screenshotDir,
-    initialTask: cliArgs.length > 0 ? resolveTaskFromArgs(cliArgs) : undefined,
+    initialTask,
+    runMode,
+    plannerModel: process.env.OPENAI_PLANNER_MODEL ?? DEFAULT_PLANNER_MODEL,
+    playbookPath,
+    playbookDir: resolvePlaybookDir(),
+    variableOverrides,
   };
 }
