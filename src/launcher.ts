@@ -115,7 +115,7 @@ function spawnPnpmScript(
   return spawn(pnpmCommand, args, {
     stdio: "inherit",
     env: process.env,
-    shell: true,
+    shell: process.platform === "win32",
   });
 }
 
